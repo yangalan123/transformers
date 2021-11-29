@@ -49,7 +49,7 @@ class ClipValueAdamW(AdamW):
                                          (update > self.max_clip_val).sum().item(),
                                          torch.numel(p.data)
                                          ))
-        update = torch.clamp(update, self.max_clip_val)
+        update = torch.clamp(update, max=self.max_clip_val)
         return update
 
     def step(self, closure: Callable = None):
