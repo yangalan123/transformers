@@ -44,6 +44,7 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
+from GradClipTrainer import GradValueClipTrainer
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -131,6 +132,18 @@ class DataTrainingArguments:
         default=None, metadata={"help": "A csv or a json file containing the validation data."}
     )
     test_file: Optional[str] = field(default=None, metadata={"help": "A csv or a json file containing the test data."})
+    use_clip_trainer: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to use clip value trainer "
+        },
+    )
+    max_clip_value: Optional[float] = field(
+        default=0.25,
+        metadata={
+            "help": "maximum clip value"
+        },
+    )
 
     def __post_init__(self):
         if self.task_name is not None:
@@ -148,6 +161,8 @@ class DataTrainingArguments:
             assert (
                 validation_extension == train_extension
             ), "`validation_file` should have the same extension (csv or json) as `train_file`."
+        if self.use_clip_trainer:
+            assert self.max_clip_value >= -999, "if using grad clip by value, then value should be reasonably large"
 
 
 @dataclass
@@ -465,8 +480,12 @@ def main():
     else:
         data_collator = None
 
+    Trainer_cls = Trainer
+    if data_args.use_clip_trainer:
+        Trainer_cls = GradValueClipTrainer
+        training_args.max_clip_value = data_args.max_clip_value
     # Initialize our Trainer
-    trainer = Trainer(
+    trainer = Trainer_cls(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
