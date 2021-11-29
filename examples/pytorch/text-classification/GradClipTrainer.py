@@ -38,7 +38,7 @@ class ClipValueAdamW(AdamW):
         if not 0.0 <= eps:
             raise ValueError(f"Invalid epsilon value: {eps} - should be >= 0.0")
         defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, correct_bias=correct_bias)
-        super().__init__(params, defaults)
+        super().__init__(params, **defaults)
         # record all numbers of clpped terms
         self.clip_number_history = []
         self.max_clip_val = max_clip_value
@@ -47,7 +47,7 @@ class ClipValueAdamW(AdamW):
     def clip(self, p, update, g_i, p_i, name):
         self.clip_number_history.append((name, tuple(p.shape), (g_i, p_i),
                                          (update > self.max_clip_val).sum().item(),
-                                         torch.numel(p.data).item()
+                                         torch.numel(p.data)
                                          ))
         update = torch.clamp(update, self.max_clip_val)
         return update
@@ -146,6 +146,7 @@ class GradValueClipTrainer(Trainer):
             "max_clip_value": self.args.max_clip_value
         }
         optimizer_kwargs["lr"] = self.args.learning_rate
+        print(optimizer_kwargs)
         if self.sharded_ddp == ShardedDDPOption.SIMPLE:
             self.optimizer = OSS(
                 params=optimizer_grouped_parameters,
