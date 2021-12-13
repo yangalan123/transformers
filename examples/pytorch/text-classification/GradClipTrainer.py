@@ -45,7 +45,7 @@ class ClipValueAdamW(AdamW):
     pass
 
     def clip(self, p, update, g_i, p_i, name):
-        self.clip_number_history.append((name, tuple(p.shape), (g_i, p_i),
+        self.clip_number_history.append((name,tuple(p.shape), (p, g_i, p_i),
                                          (update > self.max_clip_val).sum().item(),
                                          torch.numel(p.data)
                                          ))
@@ -68,6 +68,8 @@ class ClipValueAdamW(AdamW):
                 if p.grad is None:
                     continue
                 grad = p.grad.data
+                # pre-correction clipping
+                grad = self.clip(p, grad, g_i, p_i, "pre-correction-update")
                 if grad.is_sparse:
                     raise RuntimeError("Adam does not support sparse gradients, please consider SparseAdam instead")
 
@@ -98,11 +100,12 @@ class ClipValueAdamW(AdamW):
                     bias_correction2 = 1.0 - beta2 ** state["step"]
                     step_size = step_size * math.sqrt(bias_correction2) / bias_correction1
 
-                # p.data.addcdiv_(exp_avg, denom, value=-step_size)
-                dummy_data = torch.zeros_like(p.data)
-                update = torch.addcdiv(dummy_data, exp_avg, denom, value=-step_size)
-                update = self.clip(p, update, g_i, p_i, name="normal update")
-                p.data.add_(update)
+                p.data.addcdiv_(exp_avg, denom, value=-step_size)
+                # used for post-update, but according to recent meeting, we should do clipping before error correction terms are computed1yy
+                # dummy_data = torch.zeros_like(p.data)
+                # update = torch.addcdiv(dummy_data, exp_avg, denom, value=-step_size)
+                # update = self.clip(p, update, g_i, p_i, name="normal update")
+                # p.data.add_(update)
 
                 # Just adding the square of the weights to the loss function is *not*
                 # the correct way of using L2 regularization/weight decay with Adam,
@@ -113,10 +116,11 @@ class ClipValueAdamW(AdamW):
                 # of the weights to the loss with plain (non-momentum) SGD.
                 # Add weight decay at the end (fixed version)
                 if group["weight_decay"] > 0.0:
-                    # p.data.add_(p.data, alpha=(-group["lr"] * group["weight_decay"]))
-                    update = p.data * -group["lr"] * group["weight_decay"]
-                    update = self.clip(p, update, g_i, p_i, name="weight decay update")
-                    p.data.add_(update)
+                    p.data.add_(p.data, alpha=(-group["lr"] * group["weight_decay"]))
+                    # used for post-update, but according to recent meeting, we should do clipping before error correction terms are computed1yy
+                    # update = p.data * -group["lr"] * group["weight_decay"]
+                    # update = self.clip(p, update, g_i, p_i, name="weight decay update")
+                    # p.data.add_(update)
 
         return loss
 
