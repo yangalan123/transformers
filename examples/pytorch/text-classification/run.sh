@@ -1,5 +1,6 @@
 export TASK_NAME=rte
-clip_value=0.25
+clip_value=0.01
+grad_clip_data_save_period=20
 
 python run_glue.py \
   --model_name_or_path bert-base-cased \
@@ -14,7 +15,8 @@ python run_glue.py \
   --cache_dir ./cache \
   --use_clip_trainer True \
   --max_clip_value ${clip_value} \
-  --output_dir ./output/save_${TASK_NAME}_clip_value_${clip_value}
+  --output_dir ./output/pre_correction_${TASK_NAME}_clip_value_${clip_value}_period_${grad_clip_data_save_period} \
+  --grad_clip_data_save_period ${grad_clip_data_save_period}
   #--output_dir ./output/save_${TASK_NAME}
 echo "Press 'q' to exit"
 count=0

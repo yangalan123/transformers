@@ -3,11 +3,16 @@ from transformers.trainer_pt_utils import get_parameter_names
 from transformers.trainer_utils import ShardedDDPOption
 from transformers.integrations import is_fairscale_available
 from transformers.dependency_versions_check import dep_version_check
+from transformers.file_utils import (
+    is_sagemaker_mp_enabled,
+    is_apex_available
+)
 from torch import nn
 from typing import Callable, Iterable, Optional, Tuple, Union
 from transformers.utils.versions import require_version
 import torch
 import math
+from packaging import version
 if is_fairscale_available():
     dep_version_check("fairscale")
     import fairscale
@@ -16,6 +21,20 @@ if is_fairscale_available():
     from fairscale.nn.wrap import auto_wrap
     from fairscale.optim import OSS
     from fairscale.optim.grad_scaler import ShardedGradScaler
+if is_sagemaker_mp_enabled():
+    import smdistributed.modelparallel.torch as smp
+
+    from transformers.trainer_pt_utils import smp_forward_backward, smp_forward_only, smp_gather, smp_nested_concat
+
+if is_apex_available():
+    from apex import amp
+
+if version.parse(torch.__version__) >= version.parse("1.6"):
+    _is_torch_generator_available = True
+    _is_native_amp_available = True
+    from torch.cuda.amp import autocast
+
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 class ClipValueAdamW(AdamW):
     def __init__(
@@ -45,7 +64,7 @@ class ClipValueAdamW(AdamW):
     pass
 
     def clip(self, p, update, g_i, p_i, name):
-        self.clip_number_history.append((name,tuple(p.shape), (p, g_i, p_i),
+        self.clip_number_history.append((name, tuple(p.shape), (p, g_i, p_i),
                                          (update > self.max_clip_val).sum().item(),
                                          torch.numel(p.data)
                                          ))
@@ -127,37 +146,116 @@ class ClipValueAdamW(AdamW):
 
 # we need to sublcass Trainer, because we need some way to inform the max_clip_value
 class GradValueClipTrainer(Trainer):
-    def create_optimizer(self):
-        # by default, use AdamW to conform with Devlin et al., 2019
-        # here the main change is that we change clip_norm_max behavior of AdamW, so it can be used to implement clip_value
-        decay_parameters = get_parameter_names(self.model, [nn.LayerNorm])
-        decay_parameters = [name for name in decay_parameters if "bias" not in name]
-        optimizer_grouped_parameters = [
-            {
-                "params": [p for n, p in self.model.named_parameters() if n in decay_parameters],
-                "weight_decay": self.args.weight_decay,
-            },
-            {
-                "params": [p for n, p in self.model.named_parameters() if n not in decay_parameters],
-                "weight_decay": 0.0,
-            },
-        ]
-        # if not self.args.adafactor:
-        optimizer_cls = ClipValueAdamW
-        optimizer_kwargs = {
-            "betas": (self.args.adam_beta1, self.args.adam_beta2),
-            "eps": self.args.adam_epsilon,
-            "max_clip_value": self.args.max_clip_value
-        }
-        optimizer_kwargs["lr"] = self.args.learning_rate
-        print(optimizer_kwargs)
-        if self.sharded_ddp == ShardedDDPOption.SIMPLE:
-            self.optimizer = OSS(
-                params=optimizer_grouped_parameters,
-                optim=optimizer_cls,
-                **optimizer_kwargs,
-            )
-        else:
-            self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
+    # deprecated, because we want to get the name of parameters
+    # def create_optimizer(self):
+    #     # by default, use AdamW to conform with Devlin et al., 2019
+    #     # here the main change is that we change clip_norm_max behavior of AdamW, so it can be used to implement clip_value
+    #     decay_parameters = get_parameter_names(self.model, [nn.LayerNorm])
+    #     decay_parameters = [name for name in decay_parameters if "bias" not in name]
+    #     optimizer_grouped_parameters = [
+    #         {
+    #             "params": [p for n, p in self.model.named_parameters() if n in decay_parameters],
+    #             "weight_decay": self.args.weight_decay,
+    #         },
+    #         {
+    #             "params": [p for n, p in self.model.named_parameters() if n not in decay_parameters],
+    #             "weight_decay": 0.0,
+    #         },
+    #     ]
+    #     # if not self.args.adafactor:
+    #     optimizer_cls = ClipValueAdamW
+    #     optimizer_kwargs = {
+    #         "betas": (self.args.adam_beta1, self.args.adam_beta2),
+    #         "eps": self.args.adam_epsilon,
+    #         "max_clip_value": self.args.max_clip_value
+    #     }
+    #     optimizer_kwargs["lr"] = self.args.learning_rate
+    #     print(optimizer_kwargs)
+    #     if self.sharded_ddp == ShardedDDPOption.SIMPLE:
+    #         self.optimizer = OSS(
+    #             params=optimizer_grouped_parameters,
+    #             optim=optimizer_cls,
+    #             **optimizer_kwargs,
+    #         )
+    #     else:
+    #         self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
+    #
+    #     pass
 
-        pass
+    def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
+        """
+        Perform a training step on a batch of inputs.
+        Subclass and override to inject custom behavior.
+        Args:
+            model (`nn.Module`):
+                The model to train.
+            inputs (`Dict[str, Union[torch.Tensor, Any]]`):
+                The inputs and targets of the model.
+                The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
+                argument `labels`. Check your model's documentation for all accepted arguments.
+        Return:
+            `torch.Tensor`: The tensor with training loss on this batch.
+        """
+        model.train()
+        inputs = self._prepare_inputs(inputs)
+
+        if is_sagemaker_mp_enabled():
+            scaler = self.scaler if self.do_grad_scaling else None
+            loss_mb = smp_forward_backward(model, inputs, self.args.gradient_accumulation_steps, scaler=scaler)
+            return loss_mb.reduce_mean().detach().to(self.args.device)
+
+        # in HF@4.12.5 (local PC)
+        if self.use_amp:
+            with autocast():
+                loss = self.compute_loss(model, inputs)
+        else:
+            loss = self.compute_loss(model, inputs)
+        # # in HF@4.15
+        # with self.autocast_smart_context_manager():
+        #     loss = self.compute_loss(model, inputs)
+
+        if self.args.n_gpu > 1:
+            loss = loss.mean()  # mean() to average on multi-gpu parallel training
+
+        if self.args.gradient_accumulation_steps > 1 and not self.deepspeed:
+            # deepspeed handles loss scaling by gradient_accumulation_steps in its `backward`
+            loss = loss / self.args.gradient_accumulation_steps
+
+        # HF@4.15
+        # if self.do_grad_scaling:
+        if self.use_amp:
+            self.scaler.scale(loss).backward()
+        elif self.use_apex:
+            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                scaled_loss.backward()
+        elif self.deepspeed:
+            # loss gets scaled under gradient_accumulation_steps in deepspeed
+            loss = self.deepspeed.backward(loss)
+        else:
+            loss.backward()
+
+
+        if hasattr(self.state, "gradClipMemory") and len(self.state.gradClipMemory) > 0:
+        # if len(self.state.gradClipMemory) > 0:
+            for name, param in model.named_parameters():
+                if hasattr(param, "grad") and param.grad is not None:
+                    grad = param.grad
+                    clip_num = (grad > self.args.max_clip_value).sum().item()
+                    assert name not in self.state.gradClipMemory
+                    self.state.gradClipMemory[name] = {
+                        "shape": list(param.shape),
+                        "n_element": torch.numel(param),
+                        "clipped_num": clip_num,
+                        "max_grad_value": grad.max().item(),
+                        "min_grad_value": grad.min().item(),
+                        "mean_grad_value": grad.mean().item(),
+                        "max_param_value": param.max().item(),
+                        "min_param_value": param.min().item(),
+                        "mean_param_value": param.mean().item()
+                    }
+                    if clip_num > 0:
+                        param.grad = torch.clamp(param.grad, max=self.args.max_clip_value)
+
+
+
+        return loss.detach()

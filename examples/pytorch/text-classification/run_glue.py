@@ -144,6 +144,12 @@ class DataTrainingArguments:
             "help": "maximum clip value"
         },
     )
+    grad_clip_data_save_period: Optional[int] = field(
+        default=500,
+        metadata={
+            "help": "After how many steps do we save the grad_clip_data_save_period?"
+        },
+    )
 
     def __post_init__(self):
         if self.task_name is not None:
@@ -163,6 +169,7 @@ class DataTrainingArguments:
             ), "`validation_file` should have the same extension (csv or json) as `train_file`."
         if self.use_clip_trainer:
             assert self.max_clip_value >= -999, "if using grad clip by value, then value should be reasonably large"
+            assert self.grad_clip_data_save_period > 0, "please specify a valid number of period to save the grad value clip dynamics!"
 
 
 @dataclass
@@ -480,20 +487,36 @@ def main():
     else:
         data_collator = None
 
-    Trainer_cls = Trainer
+    # Trainer_cls = Trainer
     if data_args.use_clip_trainer:
         Trainer_cls = GradValueClipTrainer
         training_args.max_clip_value = data_args.max_clip_value
-    # Initialize our Trainer
-    trainer = Trainer_cls(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset if training_args.do_train else None,
-        eval_dataset=eval_dataset if training_args.do_eval else None,
-        compute_metrics=compute_metrics,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
-    )
+        training_args.grad_clip_data_save_period = data_args.grad_clip_data_save_period
+        training_args.gradClipMemorySavePath = os.path.join(training_args.output_dir, "gradClipMemoryJsons")
+        # Initialize our Trainer
+        from callback import GradValueClippingCallback
+        trainer = Trainer_cls(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset if training_args.do_train else None,
+            eval_dataset=eval_dataset if training_args.do_eval else None,
+            compute_metrics=compute_metrics,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+            callbacks=[GradValueClippingCallback]
+        )
+    else:
+        Trainer_cls = Trainer
+        trainer = Trainer_cls(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset if training_args.do_train else None,
+            eval_dataset=eval_dataset if training_args.do_eval else None,
+            compute_metrics=compute_metrics,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+        )
+
 
     # Training
     if training_args.do_train:
