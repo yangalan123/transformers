@@ -16,12 +16,13 @@ limitations under the License.
 
 # Gradient Clipping Experiments
 Author: Chenghao Yang (yangalan1996@gmail.com)
+
 Advisor: Prof. Xuezhe Ma (xuezhema@isi.edu)
 
 ## Dependency Installation
 ```bash
 conda create -p ./env python=3.7
-conda activate ./env # the environment position is optional, you can choose whatever places you like to save dependencies. Here I choose transformers/env for example.
+conda activate ./env # the environment position is optional, you can choose whatever places you like to save dependencies. Here I choose ./env for example.
 pip install -r requirements.txt
 ```
 ## Dataset and Model Downloading
