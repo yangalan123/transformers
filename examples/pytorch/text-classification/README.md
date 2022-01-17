@@ -20,11 +20,8 @@ Advisor: Prof. Xuezhe Ma (xuezhema@isi.edu)
 
 ## Dependency Installation
 ```bash
-cd ../../../ # you should be under transformers/
 conda create -p ./env python=3.7
 conda activate ./env # the environment position is optional, you can choose whatever places you like to save dependencies. Here I choose transformers/env for example.
-pip install -e .
-cd examples/pytorch/text-classification # welcome back
 pip install -r requirements.txt
 ```
 ## Dataset and Model Downloading
