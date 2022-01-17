@@ -14,6 +14,45 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
+# Gradient Clipping Experiments
+Author: Chenghao Yang (yangalan1996@gmail.com)
+Advisor: Prof. Xuezhe Ma (xuezhema@isi.edu)
+
+## Dependency Installation
+```bash
+cd ../../../ # you should be under transformers/
+conda create -p ./env python=3.7
+conda activate ./env # the environment position is optional, you can choose whatever places you like to save dependencies. Here I choose transformers/env for example.
+pip install -e .
+cd examples/pytorch/text-classification # welcome back
+pip install -r requirements.txt
+```
+## Dataset and Model Downloading
+```bash
+python download_model_and_data_HF.py --model_name_or_path bert-base-uncased --task_name sst2 --cache_dir ./cache
+```
+The supported models list can be found [here](https://huggingface.co/models). I use `bert-base-uncased` as an example. The supported GLUE tasks list is [here](https://huggingface.co/datasets/glue). (I use `sst2` as an example.)
+
+## Run Experiments
+```bash
+bash run.sh
+```
+You can play with `run.sh` to experiment with different settings. 
+
+For group-wise gradient norm clipping, use 
+```bash
+--use_group_grad_norm_clip True
+--max_clip_value [some_value_equal_or_larger_than_0]
+```
+
+For gradient value clipping, use 
+```base
+--use_grad_value_clip True
+--max_clip_value [arbitrary_float_value]
+```
+
+BELOW ARE ORIGINAL HUGGINGFACE README
+
 # Text classification examples
 
 ## GLUE tasks

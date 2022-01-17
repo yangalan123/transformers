@@ -46,7 +46,6 @@ from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 from GradClipTrainer import GradValueClipTrainer
 
-
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.13.0.dev0")
 
@@ -91,7 +90,7 @@ class DataTrainingArguments:
         default=128,
         metadata={
             "help": "The maximum total input sequence length after tokenization. Sequences longer "
-            "than this will be truncated, sequences shorter will be padded."
+                    "than this will be truncated, sequences shorter will be padded."
         },
     )
     overwrite_cache: bool = field(
@@ -101,28 +100,28 @@ class DataTrainingArguments:
         default=True,
         metadata={
             "help": "Whether to pad all samples to `max_seq_length`. "
-            "If False, will pad the samples dynamically when batching to the maximum length in the batch."
+                    "If False, will pad the samples dynamically when batching to the maximum length in the batch."
         },
     )
     max_train_samples: Optional[int] = field(
         default=None,
         metadata={
             "help": "For debugging purposes or quicker training, truncate the number of training examples to this "
-            "value if set."
+                    "value if set."
         },
     )
     max_eval_samples: Optional[int] = field(
         default=None,
         metadata={
             "help": "For debugging purposes or quicker training, truncate the number of evaluation examples to this "
-            "value if set."
+                    "value if set."
         },
     )
     max_predict_samples: Optional[int] = field(
         default=None,
         metadata={
             "help": "For debugging purposes or quicker training, truncate the number of prediction examples to this "
-            "value if set."
+                    "value if set."
         },
     )
     train_file: Optional[str] = field(
@@ -138,12 +137,25 @@ class DataTrainingArguments:
             "help": "Whether to use clip value trainer "
         },
     )
-    max_clip_value: Optional[float] = field(
-        default=0.25,
+    use_group_grad_norm_clip: bool = field(
+        default=False,
         metadata={
-            "help": "maximum clip value"
+            "help": "Whether to use group gradient norm clipping?"
+        }
+    )
+    use_grad_value_clip: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to use gradient norm clipping by value?"
+        }
+    )
+    max_clip_value: Optional[float] = field(
+        default=-1e-4,
+        metadata={
+            "help": "maximum clip value (max_value for value clipping and max_norm for norm clipping)"
         },
     )
+
     grad_clip_data_save_period: Optional[int] = field(
         default=500,
         metadata={
@@ -165,11 +177,21 @@ class DataTrainingArguments:
             assert train_extension in ["csv", "json"], "`train_file` should be a csv or a json file."
             validation_extension = self.validation_file.split(".")[-1]
             assert (
-                validation_extension == train_extension
+                    validation_extension == train_extension
             ), "`validation_file` should have the same extension (csv or json) as `train_file`."
         if self.use_clip_trainer:
             assert self.max_clip_value >= -999, "if using grad clip by value, then value should be reasonably large"
             assert self.grad_clip_data_save_period > 0, "please specify a valid number of period to save the grad value clip dynamics!"
+            if self.use_group_grad_norm_clip:
+                assert self.max_clip_value >= 0, \
+                    "if you want to clip gradient by norm (group-wise), then you have to set max_norm >= 0!"
+                logger.warning("if we use group grad norm, the program will automatically set max_grad_norm = -1 "
+                               "to avoid using default aggregated grad group norm")
+            assert int(self.use_group_grad_norm_clip) + int(self.use_grad_value_clip) < 2 and int(
+                self.use_grad_value_clip) + int(self.use_group_grad_norm_clip) >= 1, \
+                "if you want to use clip trainer, then you have to choose one and only one mode from " \
+                "1) do clip_by_value," \
+                " 2) do clip_by_group-wise_norm"
 
 
 @dataclass
@@ -203,7 +225,7 @@ class ModelArguments:
         default=False,
         metadata={
             "help": "Will use the token generated when running `transformers-cli login` (necessary to use this script "
-            "with private models)."
+                    "with private models)."
         },
     )
 
@@ -292,7 +314,7 @@ def main():
                 train_extension = data_args.train_file.split(".")[-1]
                 test_extension = data_args.test_file.split(".")[-1]
                 assert (
-                    test_extension == train_extension
+                        test_extension == train_extension
                 ), "`test_file` should have the same extension (csv or json) as `train_file`."
                 data_files["test"] = data_args.test_file
             else:
@@ -382,9 +404,9 @@ def main():
     # Some models have set the order of the labels to use, so let's make sure we do use it.
     label_to_id = None
     if (
-        model.config.label2id != PretrainedConfig(num_labels=num_labels).label2id
-        and data_args.task_name is not None
-        and not is_regression
+            model.config.label2id != PretrainedConfig(num_labels=num_labels).label2id
+            and data_args.task_name is not None
+            and not is_regression
     ):
         # Some have all caps in their config, some don't.
         label_name_to_id = {k.lower(): v for k, v in model.config.label2id.items()}
@@ -491,6 +513,11 @@ def main():
     if data_args.use_clip_trainer:
         Trainer_cls = GradValueClipTrainer
         training_args.max_clip_value = data_args.max_clip_value
+        training_args.use_grad_value_clip = data_args.use_grad_value_clip
+        training_args.use_group_grad_norm_clip = data_args.use_group_grad_norm_clip
+        if training_args.use_group_grad_norm_clip:
+            # we need to handle max_grad_norm by ourselves
+            training_args.max_grad_norm = -1
         training_args.grad_clip_data_save_period = data_args.grad_clip_data_save_period
         training_args.gradClipMemorySavePath = os.path.join(training_args.output_dir, "gradClipMemoryJsons")
         # Initialize our Trainer
@@ -516,7 +543,6 @@ def main():
             tokenizer=tokenizer,
             data_collator=data_collator,
         )
-
 
     # Training
     if training_args.do_train:

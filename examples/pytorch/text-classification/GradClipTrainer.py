@@ -237,25 +237,42 @@ class GradValueClipTrainer(Trainer):
 
         if hasattr(self.state, "gradClipMemory") and len(self.state.gradClipMemory) > 0:
         # if len(self.state.gradClipMemory) > 0:
-            for name, param in model.named_parameters():
-                if hasattr(param, "grad") and param.grad is not None:
-                    grad = param.grad
-                    clip_num = (grad > self.args.max_clip_value).sum().item()
-                    assert name not in self.state.gradClipMemory
-                    self.state.gradClipMemory[name] = {
-                        "shape": list(param.shape),
-                        "n_element": torch.numel(param),
-                        "clipped_num": clip_num,
-                        "max_grad_value": grad.max().item(),
-                        "min_grad_value": grad.min().item(),
-                        "mean_grad_value": grad.mean().item(),
-                        "max_param_value": param.max().item(),
-                        "min_param_value": param.min().item(),
-                        "mean_param_value": param.mean().item()
-                    }
-                    if clip_num > 0:
-                        param.grad = torch.clamp(param.grad, max=self.args.max_clip_value)
-
-
+            if self.args.use_grad_value_clip:
+                for name, param in model.named_parameters():
+                    if hasattr(param, "grad") and param.grad is not None:
+                        grad = param.grad
+                        clip_num = (grad > self.args.max_clip_value).sum().item()
+                        assert name not in self.state.gradClipMemory
+                        self.state.gradClipMemory[name] = {
+                            "shape": list(param.shape),
+                            "n_element": torch.numel(param),
+                            "clipped_num": clip_num,
+                            "max_grad_value": grad.max().item(),
+                            "min_grad_value": grad.min().item(),
+                            "mean_grad_value": grad.mean().item(),
+                            "max_param_value": param.max().item(),
+                            "min_param_value": param.min().item(),
+                            "mean_param_value": param.mean().item()
+                        }
+                        if clip_num > 0:
+                            param.grad = torch.clamp(param.grad, max=self.args.max_clip_value)
+            else:
+                for name, param in model.named_parameters():
+                    if hasattr(param, "grad") and param.grad is not None:
+                        grad = param.grad
+                        assert name not in self.state.gradClipMemory
+                        self.state.gradClipMemory[name] = {
+                            "shape": list(param.shape),
+                            "n_element": torch.numel(param),
+                            "previous_grad_norm": grad.norm().item(),
+                            "current_grad_norm": self.args.max_clip_value,
+                            "max_grad_value": grad.max().item(),
+                            "min_grad_value": grad.min().item(),
+                            "mean_grad_value": grad.mean().item(),
+                            "max_param_value": param.max().item(),
+                            "min_param_value": param.min().item(),
+                            "mean_param_value": param.mean().item()
+                        }
+                        torch.nn.utils.clip_grad_norm_(param, self.args.max_clip_value)
 
         return loss.detach()
