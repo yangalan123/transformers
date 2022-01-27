@@ -1,11 +1,11 @@
-export TASK_NAME="sst2"
-clip_value="1"
+export TASK_NAME="rte"
+clip_value="99999"
 #model="bert-base-cased"
 model="roberta-base"
 
 grad_clip_data_save_period=20
 #for seed in 1 2 3 4 5
-for seed in 1
+for seed in 2
 do
   python run_glue.py \
     --model_name_or_path ${model} \

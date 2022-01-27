@@ -14,7 +14,7 @@ def compute_variance(path):
             res = json.load(f_in)
             acc = res["eval_accuracy"]
             accs.append(acc)
-    print(np.mean(accs), np.std(accs))
+    print(f"std: {np.std(accs):.2f}, mean: {np.mean(accs):.2f}, max: {np.max(accs):.2f}, min: {np.min(accs):.2f} , ")
 
     clip_rate = []
     for i in range(len(seed_dirs)):
@@ -35,12 +35,14 @@ def compute_variance(path):
                 clip_rate[i].append(numer / denom)
     clip_rate = np.array(clip_rate)
     mean_clip_rate = np.mean(clip_rate, axis=0)
-    print(mean_clip_rate)
+    # print(mean_clip_rate)
     all_clip_rates.append(mean_clip_rate)
     plt.plot([(x + 1) * 20 for x in range(11)], mean_clip_rate)
     plt.xlabel("number of steps")
     plt.ylabel("clipping rates")
     plt.savefig(os.path.join(path, "clip_rate_over_time.pdf"))
+    print("clip rate over time plot has been saved at {}".format(os.path.join(path, "clip_rate_over_time.pdf")))
+
     plt.clf()
     return np.mean(accs), np.std(accs)
 
@@ -49,12 +51,17 @@ def compute_variance(path):
 
 
 if __name__ == '__main__':
-    clip_values = ["999999", "0.0001", "1e-6", "0", "-1e-4"]
+    # clip_values = ["999999", "0.0001", "1e-6", "0", "-1e-4"]
+    clip_values = ["99999"]
+    task = "rte"
+    model = "roberta-base"
     accs = []
     stds = []
+    visualization_path = os.path.join("visualization", task)
+    os.makedirs(visualization_path, exist_ok=True)
     for clip_val in clip_values:
-        path = f"output/pre_correction_rte_clip_value_{clip_val}_period_20"
-        print(path)
+        path = f"output/pre_correction_{model}_{task}_group_clip_by_norm_{clip_val}"
+        print("doing evaluation for", path)
         acc, std = compute_variance(path)
         accs.append(acc)
         stds.append(std)
@@ -70,7 +77,7 @@ if __name__ == '__main__':
     plt.legend()
     plt.xlabel("number of steps")
     plt.ylabel("clipping rates")
-    plt.savefig("clip_rate_over_time_all.pdf")
+    plt.savefig(os.path.join(visualization_path, "clip_rate_over_time_all.pdf"))
 
 
 
