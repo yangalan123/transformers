@@ -261,13 +261,14 @@ class GradValueClipTrainer(Trainer):
                     if hasattr(param, "grad") and param.grad is not None:
                         grad = param.grad
                         assert name not in self.state.gradClipMemory
-                        clip_num = torch.numel(param) if grad.norm() <= (self.args.max_clip_value + 1e-6) else 0
+                        clip_num = torch.numel(param) if self.args.max_clip_value < (grad.norm() + 1e-6) else 0
                         self.state.gradClipMemory[name] = {
                             "shape": list(param.shape),
                             "n_element": torch.numel(param),
                             "clipped_num": clip_num,
                             "previous_grad_norm": grad.norm().item(),
                             "current_grad_norm": self.args.max_clip_value,
+                            "current_param_norm": param.norm().item(),
                             "max_grad_value": grad.max().item(),
                             "min_grad_value": grad.min().item(),
                             "mean_grad_value": grad.mean().item(),
@@ -275,7 +276,7 @@ class GradValueClipTrainer(Trainer):
                             "min_param_value": param.min().item(),
                             "mean_param_value": param.mean().item()
                         }
-                        if clip_num > 0:
-                            torch.nn.utils.clip_grad_norm_(param, self.args.max_clip_value)
+                        # if clip_num > 0:
+                        torch.nn.utils.clip_grad_norm_(param, self.args.max_clip_value)
 
         return loss.detach()
