@@ -5,16 +5,20 @@ import json
 from matplotlib import pyplot as plt
 import random
 all_clip_rates = []
-def compute_variance(path):
+def compute_variance(path, majority=0.53):
     seed_dirs = glob.glob(os.path.join(path, "seed*"))
 
     accs = []
+    failed_run_counter = 0
     for seed_dir in seed_dirs:
         with open(os.path.join(seed_dir, "all_results.json"), "r", encoding='utf-8') as f_in:
             res = json.load(f_in)
             acc = res["eval_accuracy"]
             accs.append(acc)
-    print(f"std: {np.std(accs):.2f}, mean: {np.mean(accs):.2f}, max: {np.max(accs):.2f}, min: {np.min(accs):.2f} , ")
+            if acc < majority:
+                failed_run_counter += 1
+
+    print(f"std: {np.std(accs):.2f}, mean: {np.mean(accs):.2f}, max: {np.max(accs):.2f}, min: {np.min(accs):.2f} , failed_run_ratio: {failed_run_counter/len(accs): .2f}")
 
     clip_rate = []
     for i in range(len(seed_dirs)):
@@ -37,7 +41,7 @@ def compute_variance(path):
     mean_clip_rate = np.mean(clip_rate, axis=0)
     # print(mean_clip_rate)
     all_clip_rates.append(mean_clip_rate)
-    plt.plot([(x + 1) * 20 for x in range(11)], mean_clip_rate)
+    plt.plot([(x + 1) * 20 for x in range(len(mean_clip_rate))], mean_clip_rate)
     plt.xlabel("number of steps")
     plt.ylabel("clipping rates")
     plt.savefig(os.path.join(path, "clip_rate_over_time.pdf"))
@@ -52,9 +56,16 @@ def compute_variance(path):
 
 if __name__ == '__main__':
     # clip_values = ["999999", "0.0001", "1e-6", "0", "-1e-4"]
-    clip_values = ["99999"]
+    clip_values = ["0.01", "0.05", "0.1", "0.5", "1", "5", "1e5"]
     task = "rte"
-    model = "roberta-base"
+    model = "bert-large-uncased"
+    # from: https://arxiv.org/pdf/2006.04884.pdf
+    majority_vote_map = {
+        "rte": 0.53,
+        "cola": 0,
+        "mrpc": 0.75,
+        "qnli": 0.50
+    }
     accs = []
     stds = []
     visualization_path = os.path.join("visualization", task)
@@ -62,7 +73,7 @@ if __name__ == '__main__':
     for clip_val in clip_values:
         path = f"output/pre_correction_{model}_{task}_group_clip_by_norm_{clip_val}"
         print("doing evaluation for", path)
-        acc, std = compute_variance(path)
+        acc, std = compute_variance(path, majority=majority_vote_map[task])
         accs.append(acc)
         stds.append(std)
     number_of_colors = 8
@@ -71,7 +82,7 @@ if __name__ == '__main__':
     #          for i inn range(number_of_colors)]
     colors = ["green", "purple", "blue", "black", "red"]
     for clip_tags, clip_ratios, acc, std, color in zip(clip_values, all_clip_rates, accs, stds, colors):
-        plt.plot([(x+1) * 20 for x in range(11)], clip_ratios,
+        plt.plot([(x+1) * 20 for x in range(len(clip_ratios))], clip_ratios,
                  label=f"clip-value-{clip_tags} (acc:{acc:.3f}, std: {std:.3f}",
                  color=color)
     plt.legend()

@@ -163,6 +163,13 @@ class DataTrainingArguments:
         },
     )
 
+    correct_bias: Optional[bool] = field(
+        default=True,
+        metadata={
+            "help": "whether to do correct_bias if using adamW (will be ignored if using Adafactor)"
+        }
+    )
+
     def __post_init__(self):
         if self.task_name is not None:
             self.task_name = self.task_name.lower()
@@ -515,6 +522,7 @@ def main():
         training_args.max_clip_value = data_args.max_clip_value
         training_args.use_grad_value_clip = data_args.use_grad_value_clip
         training_args.use_group_grad_norm_clip = data_args.use_group_grad_norm_clip
+        training_args.correct_bias = data_args.correct_bias
         if training_args.use_group_grad_norm_clip:
             # we need to handle max_grad_norm by ourselves
             training_args.max_grad_norm = -1
