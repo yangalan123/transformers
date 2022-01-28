@@ -28,6 +28,7 @@ for run in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 2
     --learning_rate 2e-5 \
     --warmup_ratio 0.1 \
     --overwrite_output_dir \
+    --use_clip_trainer True \
     --correct_bias ${correct_bias} \
     --weight_decay 0.01 \
     --seed ${seeds[${run}]} \

@@ -194,11 +194,11 @@ class DataTrainingArguments:
                     "if you want to clip gradient by norm (group-wise), then you have to set max_norm >= 0!"
                 logger.warning("if we use group grad norm, the program will automatically set max_grad_norm = -1 "
                                "to avoid using default aggregated grad group norm")
-            assert int(self.use_group_grad_norm_clip) + int(self.use_grad_value_clip) < 2 and int(
-                self.use_grad_value_clip) + int(self.use_group_grad_norm_clip) >= 1, \
-                "if you want to use clip trainer, then you have to choose one and only one mode from " \
-                "1) do clip_by_value," \
-                " 2) do clip_by_group-wise_norm"
+            # assert int(self.use_group_grad_norm_clip) + int(self.use_grad_value_clip) < 2 and int(
+            #     self.use_grad_value_clip) + int(self.use_group_grad_norm_clip) >= 1, \
+            #     "if you want to use clip trainer, then you have to choose one and only one mode from " \
+            #     "1) do clip_by_value," \
+            #     " 2) do clip_by_group-wise_norm"
 
 
 @dataclass
