@@ -16,8 +16,9 @@ model=$1
 grad_clip_data_save_period=20
 seeds=(1 2 3 5 7 11 13 17 19 23 29 31 37 41 42 43 47 53 59 61 67 71 73 79 83 89 97 101 997 1021)
 
-for clip_value in 0.01 0.05 0.1 0.5 1 5; do
+for clip_value in 0.01 0.05 0.1 0.5 1 5 1e5; do
 for run in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29; do
+  seed=${seeds[${run}]}
   python run_glue.py \
     --model_name_or_path ${model} \
     --task_name $TASK_NAME \
@@ -26,7 +27,7 @@ for run in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 2
     --max_seq_length 128 \
     --per_device_train_batch_size 16 \
     --learning_rate 2e-5 \
-    --seed ${seeds[${run}]} \
+    --seed ${seed} \
     --num_train_epochs 3 \
     --cache_dir ${CACHE_DIR} \
     --use_clip_trainer True \
