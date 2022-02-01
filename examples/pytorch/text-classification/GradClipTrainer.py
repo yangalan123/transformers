@@ -213,7 +213,7 @@ class GradValueClipTrainer(Trainer):
                     # we need to set it to be False to match back the original devlin paper
                     "correct_bias": self.args.correct_bias,
                 }
-            print(optimizer_kwargs)
+            # print(optimizer_kwargs)
             optimizer_kwargs["lr"] = self.args.learning_rate
             if self.sharded_ddp == ShardedDDPOption.SIMPLE:
                 self.optimizer = OSS(
