@@ -213,6 +213,7 @@ class GradValueClipTrainer(Trainer):
                     # we need to set it to be False to match back the original devlin paper
                     "correct_bias": self.args.correct_bias,
                 }
+            print(optimizer_kwargs)
             optimizer_kwargs["lr"] = self.args.learning_rate
             if self.sharded_ddp == ShardedDDPOption.SIMPLE:
                 self.optimizer = OSS(
@@ -302,7 +303,7 @@ class GradValueClipTrainer(Trainer):
                         }
                         if clip_num > 0:
                             param.grad = torch.clamp(param.grad, max=self.args.max_clip_value)
-            else:
+            elif self.args.use_group_grad_norm_clip:
                 for name, param in model.named_parameters():
                     if hasattr(param, "grad") and param.grad is not None:
                         grad = param.grad
