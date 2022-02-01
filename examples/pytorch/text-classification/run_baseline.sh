@@ -18,6 +18,7 @@ grad_clip_data_save_period=20
 seeds=(1 2 3 5 7 11 13 17 19 23 29 31 37 41 42 43 47 53 59 61 67 71 73 79 83 89 97 101 997 1021)
 
 for run in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29; do
+  seed=${seeds[${run}]}
   python run_glue.py \
     --model_name_or_path ${model} \
     --task_name $TASK_NAME \
@@ -31,17 +32,17 @@ for run in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 2
     --use_clip_trainer True \
     --correct_bias ${correct_bias} \
     --weight_decay 0.01 \
-    --seed ${seeds[${run}]} \
+    --seed ${seed} \
     --num_train_epochs 3 \
     --cache_dir ${CACHE_DIR} \
-    --output_dir ./output/pre_correction_${model}_${TASK_NAME}_baseline/seed${seeds[${run}]}
+    --output_dir ./output/pre_correction_${model}_${TASK_NAME}_baseline/seed${seed}
     # by default, bert baseline will also do grad_clip_norm=1.0
 #    --output_dir ./output/pre_correction_${TASK_NAME}_clip_value_${clip_value}_period_${grad_clip_data_save_period}/seed${seed}
     #--output_dir ./output/save_${TASK_NAME}
 #    --use_grad_value_clip True \
 wait
 done
-done
+
 echo "Press 'q' to exit"
 count=0
 while : ; do
