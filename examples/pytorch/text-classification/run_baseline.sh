@@ -9,7 +9,7 @@ export HF_DATASETS_CACHE=${CACHE_DIR}
 export HF_METRICS_CACHE=${CACHE_DIR}
 export TRANSFORMERS_OFFLINE=1
 export TASK_NAME=$2
-correct_bias="True"
+correct_bias="False"
 #clip_value="0.1"
 #model="bert-base-cased"
 model=$1
@@ -32,10 +32,11 @@ for run in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 2
     --use_clip_trainer True \
     --correct_bias ${correct_bias} \
     --weight_decay 0.01 \
+    --save_steps 5000 \
     --seed ${seed} \
     --num_train_epochs 3 \
     --cache_dir ${CACHE_DIR} \
-    --output_dir ./output/pre_correction_${model}_${TASK_NAME}_baseline2/seed${seed}
+    --output_dir ./output/pre_correction_${model}_${TASK_NAME}_baseline1/seed${seed}
     # by default, bert baseline will also do grad_clip_norm=1.0
 #    --output_dir ./output/pre_correction_${TASK_NAME}_clip_value_${clip_value}_period_${grad_clip_data_save_period}/seed${seed}
     #--output_dir ./output/save_${TASK_NAME}
