@@ -52,15 +52,21 @@ from GradClipTrainer import GradValueClipTrainer
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/text-classification/requirements.txt")
 
 task_to_keys = {
-    "cola": ("sentence", None),
-    "mnli": ("premise", "hypothesis"),
-    "mrpc": ("sentence1", "sentence2"),
-    "qnli": ("question", "sentence"),
-    "qqp": ("question1", "question2"),
-    "rte": ("sentence1", "sentence2"),
-    "sst2": ("sentence", None),
-    "stsb": ("sentence1", "sentence2"),
-    "wnli": ("sentence1", "sentence2"),
+    "glue": {
+        "cola": ("sentence", None),
+        "mnli": ("premise", "hypothesis"),
+        "mrpc": ("sentence1", "sentence2"),
+        "qnli": ("question", "sentence"),
+        "qqp": ("question1", "question2"),
+        "rte": ("sentence1", "sentence2"),
+        "sst2": ("sentence", None),
+        "stsb": ("sentence1", "sentence2"),
+        "wnli": ("sentence1", "sentence2"),
+    },
+    "super_glue": {
+        "rte": ("premise", "hypothesis"),
+        "cb": ("premise", "hypothesis"),
+    }
 }
 
 logger = logging.getLogger(__name__)
@@ -79,6 +85,9 @@ class DataTrainingArguments:
     task_name: Optional[str] = field(
         default=None,
         metadata={"help": "The name of the task to train on: " + ", ".join(task_to_keys.keys())},
+    )
+    dataset_type: Optional[str] = field(
+        default="glue", metadata={"help": "glue or super_glue?"}
     )
     dataset_name: Optional[str] = field(
         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
@@ -171,6 +180,9 @@ class DataTrainingArguments:
     )
 
     def __post_init__(self):
+        assert self.dataset_type in ["glue", "super_glue"], "only support glue / super_glue"
+        global task_to_keys
+        task_to_keys = task_to_keys[self.dataset_type]
         if self.task_name is not None:
             self.task_name = self.task_name.lower()
             if self.task_name not in task_to_keys.keys():
@@ -303,7 +315,7 @@ def main():
     # download the dataset.
     if data_args.task_name is not None:
         # Downloading and loading a dataset from the hub.
-        raw_datasets = load_dataset("glue", data_args.task_name, cache_dir=model_args.cache_dir)
+        raw_datasets = load_dataset(data_args.dataset_type, data_args.task_name, cache_dir=model_args.cache_dir)
     elif data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
