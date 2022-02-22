@@ -269,6 +269,7 @@ def main():
         handlers=[logging.StreamHandler(sys.stdout)],
     )
 
+
     log_level = training_args.get_process_log_level()
     logger.setLevel(log_level)
     datasets.utils.logging.set_verbosity(log_level)
@@ -501,7 +502,7 @@ def main():
 
     # Get the metric function
     if data_args.task_name is not None:
-        metric = load_metric("glue", data_args.task_name)
+        metric = load_metric(data_args.dataset_type, data_args.task_name)
     else:
         metric = load_metric("accuracy")
 
