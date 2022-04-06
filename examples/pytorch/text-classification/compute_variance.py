@@ -10,7 +10,7 @@ all_clip_rates = []
 fig = go.Figure()
 
 
-def compute_variance(path, majority=0.53):
+def compute_variance(path, majority=0.53, metrics="eval_accuracy"):
     def plot_clip_rate_fig(seed_dirs, output_fn="clip_rate_over_time.pdf"):
         clip_rate = []
         for i in range(len(seed_dirs)):
@@ -140,10 +140,11 @@ def compute_variance(path, majority=0.53):
     for seed_dir in seed_dirs:
         with open(os.path.join(seed_dir, "all_results.json"), "r", encoding='utf-8') as f_in:
             res = json.load(f_in)
-            if "eval_accuracy" in res:
-                acc = res["eval_accuracy"]
-            else:
-                acc = res["eval_matthews_correlation"]
+            # if "eval_accuracy" in res:
+            #     acc = res["eval_accuracy"]
+            # else:
+            #     acc = res["eval_matthews_correlation"]
+            acc = res[metrics]
             accs.append(acc)
             if acc <= majority:
                 failed_run_counter += 1
@@ -187,28 +188,43 @@ if __name__ == '__main__':
     # clip_values = ["1e5"]
     # task = "rte"
     # task = "mrpc"
-    task = "cola"
-    for task in ["rte", "mrpc", "cola"]:
+    # task = "cola"
+    majority_vote_map = {
+        "rte": 0.53,
+        "cola": 0,
+        "mrpc": 0.75,
+        "qnli": 0.50
+    }
+    metrics_map = {
+        "rte": "eval_accuracy",
+        "mrpc": "eval_f1",
+        "cola": "eval_matthews_correlation",
+        "qnli": "eval_accuracy"
+    }
+    # for task in ["rte", "mrpc", "cola"]:
+    for task in ["mrpc"]:
         model = "bert-large-uncased"
         # from: https://arxiv.org/pdf/2006.04884.pdf
-        majority_vote_map = {
-            "rte": 0.53,
-            "cola": 0,
-            "mrpc": 0.75,
-            "qnli": 0.50
-        }
         accs = []
         stds = []
         visualization_path = os.path.join("visualization", task)
         os.makedirs(visualization_path, exist_ok=True)
         for clip_val in clip_values:
-            path = f"output/pre_correction_{model}_{task}_group_clip_by_norm_{clip_val}"
-            # path = f"output/pre_correction_{model}_{task}_baseline"
-            # path = f"output/pre_correction_{model}_{task}_baseline1"
-            print("doing evaluation for", path)
-            acc, std = compute_variance(path, majority=majority_vote_map[task])
-            accs.append(acc)
-            stds.append(std)
+        # for clip_val in ["1e-5" ,"3e-5","5e-5"]:
+            try:
+                # path = f"output/output/output/pre_correction_{model}_{task}_group_clip_by_norm_{clip_val}"
+                # path = f"output/old/pre_correction_{model}_{task}_group_clip_by_norm_{clip_val}"
+                path = f"output/output/output/sumsample1000_{model}_{task}_group_clip_by_norm_{clip_val}"
+                # path = f"output/output/output/pre_correction_{model}_{task}_baseline_lcrl"
+                # path = f"output/output/output/subsample1000_{model}_{task}_baseline_lcrl"
+                # path = f"output/output/output/post_correction_{model}_{task}_baseline_iclr_lr{clip_val}"
+                # path = f"output/pre_correction_{model}_{task}_baseline1"
+                print("doing evaluation for", path)
+                acc, std = compute_variance(path, majority=majority_vote_map[task], metrics=metrics_map[task])
+                accs.append(acc)
+                stds.append(std)
+            except Exception as e:
+                continue
         number_of_colors = 8
 
         # colors = ["#" + ''.join([random.choice('0123456789ABCDEF') for j in range(6)])

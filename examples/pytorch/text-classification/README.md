@@ -24,6 +24,9 @@ Advisor: Prof. Xuezhe Ma (xuezhema@isi.edu)
 conda create -p ./env python=3.7
 conda activate ./env # the environment position is optional, you can choose whatever places you like to save dependencies. Here I choose ./env for example.
 pip install -r requirements.txt
+# for integration of T0 and GradClip
+cd ./CustomToolBox
+pip install -e .
 ```
 ## Dataset and Model Downloading
 ```bash

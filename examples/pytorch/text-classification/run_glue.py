@@ -44,7 +44,7 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
-from GradClipTrainer import GradValueClipTrainer
+from GroupGradClip.GradClipTrainer import GradValueClipTrainer
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.13.0.dev0")
@@ -542,7 +542,7 @@ def main():
         training_args.grad_clip_data_save_period = data_args.grad_clip_data_save_period
         training_args.gradClipMemorySavePath = os.path.join(training_args.output_dir, "gradClipMemoryJsons")
         # Initialize our Trainer
-        from callback import GradValueClippingCallback
+        from GroupGradClip.Callback import GradValueClippingCallback
         trainer = Trainer_cls(
             model=model,
             args=training_args,
