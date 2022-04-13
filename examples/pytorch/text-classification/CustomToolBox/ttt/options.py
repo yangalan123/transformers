@@ -118,7 +118,7 @@ class DataArguments:
     )
     task_name: Optional[str] = field(
         default=None,
-        metadata={"help": "The name of the task to train on: " + ", ".join(task_to_keys.keys())},
+        metadata={"help": "The name of the task to train on"},
     )
 
     def __post_init__(self):
