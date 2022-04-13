@@ -123,12 +123,13 @@ class DataArguments:
 
     def __post_init__(self):
         assert self.dataset_type in ["glue", "super_glue"], "only support glue / super_glue"
-        global task_to_keys
-        task_to_keys = task_to_keys[self.dataset_type]
+        # global task_to_keys
+        # task_to_keys = task_to_keys[self.dataset_type]
         if self.task_name is not None:
-            self.task_name = self.task_name.lower()
-            if self.task_name not in task_to_keys.keys():
-                raise ValueError("Unknown task, you should pick one in " + ",".join(task_to_keys.keys()))
+            pass
+            # self.task_name = self.task_name.lower()
+            # if self.task_name not in task_to_keys.keys():
+            #     raise ValueError("Unknown task, you should pick one in " + ",".join(task_to_keys.keys()))
         elif self.dataset_name is not None:
             pass
         elif self.train_file is None or self.validation_file is None:
