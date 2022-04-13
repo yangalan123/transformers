@@ -25,12 +25,16 @@ conda create -p ./env python=3.7
 conda activate ./env # the environment position is optional, you can choose whatever places you like to save dependencies. Here I choose ./env for example.
 pip install -r requirements.txt
 # for integration of T0 and GradClip
+pip install promptsource
 cd ./CustomToolBox
 pip install -e .
+# you also need to download the dataset (e.g., anli) and model checkpoints, see below
 ```
 ## Dataset and Model Downloading
 ```bash
 python download_model_and_data_HF.py --model_name_or_path bert-base-uncased --task_name sst2 --cache_dir ./cache
+# for T0
+python download_model_and_data_HF.py --model_name_or_path bigscience/T0pp --cache_dir ./cache
 ```
 The supported models list can be found [here](https://huggingface.co/models). I use `bert-base-uncased` as an example. The supported GLUE tasks list is [here](https://huggingface.co/datasets/glue). (I use `sst2` as an example.)
 

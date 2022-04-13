@@ -75,6 +75,85 @@ class DataArguments:
         metadata={"help": "ablation study on number of prompts"}
     )
 
+    use_clip_trainer: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to use clip value trainer "
+        },
+    )
+    use_group_grad_norm_clip: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to use group gradient norm clipping?"
+        }
+    )
+    use_grad_value_clip: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to use gradient norm clipping by value?"
+        }
+    )
+    max_clip_value: Optional[float] = field(
+        default=-1e-4,
+        metadata={
+            "help": "maximum clip value (max_value for value clipping and max_norm for norm clipping)"
+        },
+    )
+
+    grad_clip_data_save_period: Optional[int] = field(
+        default=500,
+        metadata={
+            "help": "After how many steps do we save the grad_clip_data_save_period?"
+        },
+    )
+
+    correct_bias: Optional[bool] = field(
+        default=True,
+        metadata={
+            "help": "whether to do correct_bias if using adamW (will be ignored if using Adafactor)"
+        }
+    )
+    dataset_type: Optional[str] = field(
+        default="glue", metadata={"help": "glue or super_glue?"}
+    )
+    task_name: Optional[str] = field(
+        default=None,
+        metadata={"help": "The name of the task to train on: " + ", ".join(task_to_keys.keys())},
+    )
+
+    def __post_init__(self):
+        assert self.dataset_type in ["glue", "super_glue"], "only support glue / super_glue"
+        global task_to_keys
+        task_to_keys = task_to_keys[self.dataset_type]
+        if self.task_name is not None:
+            self.task_name = self.task_name.lower()
+            if self.task_name not in task_to_keys.keys():
+                raise ValueError("Unknown task, you should pick one in " + ",".join(task_to_keys.keys()))
+        elif self.dataset_name is not None:
+            pass
+        elif self.train_file is None or self.validation_file is None:
+            raise ValueError("Need either a GLUE task, a training/validation file or a dataset name.")
+        else:
+            train_extension = self.train_file.split(".")[-1]
+            assert train_extension in ["csv", "json"], "`train_file` should be a csv or a json file."
+            validation_extension = self.validation_file.split(".")[-1]
+            assert (
+                    validation_extension == train_extension
+            ), "`validation_file` should have the same extension (csv or json) as `train_file`."
+        if self.use_clip_trainer:
+            assert self.max_clip_value >= -999, "if using grad clip by value, then value should be reasonably large"
+            assert self.grad_clip_data_save_period > 0, "please specify a valid number of period to save the grad value clip dynamics!"
+            if self.use_group_grad_norm_clip:
+                assert self.max_clip_value >= 0, \
+                    "if you want to clip gradient by norm (group-wise), then you have to set max_norm >= 0!"
+                logger.warning("if we use group grad norm, the program will automatically set max_grad_norm = -1 "
+                               "to avoid using default aggregated grad group norm")
+            # assert int(self.use_group_grad_norm_clip) + int(self.use_grad_value_clip) < 2 and int(
+            #     self.use_grad_value_clip) + int(self.use_group_grad_norm_clip) >= 1, \
+            #     "if you want to use clip trainer, then you have to choose one and only one mode from " \
+            #     "1) do clip_by_value," \
+            #     " 2) do clip_by_group-wise_norm"
+
 @dataclass
 class TestArguments:
     test_mode: str = field(

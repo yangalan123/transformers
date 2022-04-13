@@ -16,9 +16,9 @@ from transformers import (
     HfArgumentParser,
     Trainer,
     TrainingArguments,
-    DataCollatorForSeq2Seq,
     set_seed,
 )
+from customDataCollator import DataCollatorForSeq2Seq
 from ttt.options import *
 from ttt.utils import compute_metrics, summarize_metrics, compute_unsupervised_metrics, compute_unsupervised_dev_best_results
 from ttt.dataloader import DatasetByPrompt, TTTOnlineDataset, TTTOfflineDataset, TTTEvalDataset, \

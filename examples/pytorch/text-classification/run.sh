@@ -31,7 +31,7 @@ for run in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 2
     --num_train_epochs 3 \
     --cache_dir ${CACHE_DIR} \
     --use_clip_trainer True \
-    --use_group_grad_norm_clip True \
+    --use_group_grad_norm_clip True
     --max_clip_value ${clip_value} \
     --grad_clip_data_save_period ${grad_clip_data_save_period} \
     --output_dir ./output/pre_correction_${model}_${TASK_NAME}_group_clip_by_norm_${clip_value}/seed${seeds[${run}]}
