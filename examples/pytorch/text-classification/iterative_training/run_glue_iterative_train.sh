@@ -13,11 +13,19 @@
 #| WNLI  | Accuracy                     | 56.34       | 24            |
 #TASK_NAME=rte
 #model="bert-base-cased"
+source activate ../env
+
+REPO_HOME=/home1/xuezhema/projects/max/transformers/examples/pytorch/text-classification
+CACHE_DIR=$REPO_HOME/cache
+export TRANSFORMERS_CACHE=${CACHE_DIR}
+export HF_DATASETS_CACHE=${CACHE_DIR}
+export HF_METRICS_CACHE=${CACHE_DIR}
+export TRANSFORMERS_OFFLINE=1
+export TASK_NAME=$2
 model="bert-large-uncased"
 times_lr_decay=2
 lr=5e-4
 #lr=2e-5
-TASK_NAME="mnli"
 noised_alpha=0
 #TASK_NAME="hans"
 train_config="train"
