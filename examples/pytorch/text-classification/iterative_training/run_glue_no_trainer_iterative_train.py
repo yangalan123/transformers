@@ -279,7 +279,7 @@ def main():
     # download the dataset.
     if args.task_name is not None:
         # Downloading and loading a dataset from the hub.
-        if args.task_name in glue_tasks: 
+        if args.task_name in glue_tasks:
             raw_datasets = load_dataset("glue", args.task_name)
         else:
             raw_datasets = load_dataset(args.task_name)
@@ -447,7 +447,8 @@ def main():
     ALLParamNames = set([x[0] for x in model.named_parameters()])
     assert len([x[0] for x in model.named_parameters()]) == len(ALLParamNames)
     num_hidden_layers = model.config.num_hidden_layers
-    layers_keys = [f"layer.{x}" for x in range(num_hidden_layers)] + [{"classifier", "embeddings"}, ]
+    layers_keys = [f"layer.{x}" for x in range(num_hidden_layers)] + [{"classifier",}, ]
+    #layers_keys = [f"layer.{x}" for x in range(num_hidden_layers)] + [{"classifier", "embeddings"}, ]
     #layers_keys = [f"layer.{x}" for x in range(num_hidden_layers)] + [{"word_embeddings"}, ]
     #layers_keys = [f"layer.{x}" for x in range(num_hidden_layers)] + [{"classifier", "embeddings.position_embeddings", "embeddings.LayerNorm"}, ]
     #layers_keys = [f"layer.{x}" for x in range(num_hidden_layers)] + [( "embeddings.LayerNorm", "embeddings.position_embeddings", "classifier"), ]
@@ -469,7 +470,7 @@ def main():
             named_key = _key
             #selected_keys = set([x for x in ALLParamNames if _key in x])
             selected_keys = set([x for x in ALLParamNames if _key in x and "LayerNorm" not in x])
-        assert len(selected_keys) > 0 
+        assert len(selected_keys) > 0
         #print(_key, len(selected_keys))
         #new_param_group = {
             #"params": [p for n, p in model.named_parameters() if n in selected_keys],
@@ -489,7 +490,7 @@ def main():
     #)
 
 
-        
+
 
     #print([x[0] for x in model.named_parameters()])
     #exit()
@@ -566,7 +567,7 @@ def main():
                     "params": list(set_params_at_this_layer_),
                     "weight_decay": args.weight_decay if _key_group_id > 0 else 0,
                     "lr": _lr
-                } 
+                }
             )
             #params_set.update(set_params_at_this_layer_)
 
@@ -587,7 +588,7 @@ def main():
             ##print(group["initial_lr"])
             #print(group["lr"])
 
-        
+
         ratio = (args.max_train_steps - args.num_warmup_steps) / ((args.times_lr_decay - 1) * args.max_train_steps)
         lr_scheduler = get_scheduler(
             name=args.lr_scheduler_type,
@@ -706,8 +707,8 @@ def main():
             #unwrapped_model = model
             #unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
             #model.save_pretrained(args.output_dir)
-            if not args.no_training:
-                model.save_pretrained(saving_path)
+            #if not args.no_training:
+                #model.save_pretrained(saving_path)
 
         if args.task_name == "mnli":
             # Final evaluation on mismatched validation set
