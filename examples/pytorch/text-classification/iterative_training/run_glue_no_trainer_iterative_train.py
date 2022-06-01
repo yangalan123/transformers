@@ -111,6 +111,21 @@ def parse_args():
         action="store_true",
         help="If passed, will also print out the averaged norm of each hidden layer.",
     )
+    parser.add_argument(
+        "--restart_per_iteration",
+        action="store_true",
+        help="If passed, will restart from original model at each iteration.",
+    )
+    parser.add_argument(
+        "--save_model_per_iteration",
+        action="store_true",
+        help="If passed, will save model ckpt at every iteration of gradual unfreezing, this can consume large space for storage"
+    )
+    parser.add_argument(
+        "--save_param_norm_per_iteration",
+        action="store_true",
+        help="If passed, will save param norm ckpt at every iteration of gradual unfreezing"
+    )
     parser.add_argument("--load_dir", type=str, default=None, help="Where to load the final model.")
     parser.add_argument(
         "--no_training",
@@ -457,7 +472,8 @@ def main():
     #layers_keys = [f"layer.{x}" for x in range(num_hidden_layers)] + [( "embeddings.LayerNorm", "classifier"), ]
     #layers_keys = [f"layer.{x}" for x in range(num_hidden_layers)] + [{"classifier", "embeddings.position_embeddings", "embeddings.LayerNorm", "embeddings.token_type_embeddings"}, ]
     # add noise at each iteration
-    noised_layers_keys = ["classifier"]
+    # noised_layers_keys = ["classifier"]
+    noised_layers_keys = []
     all_selected_keys = []
     for _key in reversed(layers_keys):
         if isinstance(_key, set) or isinstance(_key, tuple):
@@ -471,14 +487,13 @@ def main():
             #selected_keys = set([x for x in ALLParamNames if _key in x])
             selected_keys = set([x for x in ALLParamNames if _key in x and "LayerNorm" not in x])
         assert len(selected_keys) > 0
-        #print(_key, len(selected_keys))
         #new_param_group = {
             #"params": [p for n, p in model.named_parameters() if n in selected_keys],
             #"weight_decay": args.weight_decay,
             #"lr": args.learning_rate
         #}
         #all_optimizer_grouped_parameters.append(new_param_group)
-        all_selected_keys.append([named_key, selected_keys])
+        all_selected_keys.append([named_key, list(selected_keys)])
         ALLParamNames = ALLParamNames - selected_keys
     noised_layers_param = []
     for _key in noised_layers_keys:
@@ -486,14 +501,6 @@ def main():
 
     if len(ALLParamNames) > 0:
         all_selected_keys.append(["input", ALLParamNames])
-    #all_optimizer_grouped_parameters.append(
-    #)
-
-
-
-
-    #print([x[0] for x in model.named_parameters()])
-    #exit()
 
     #optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
 
@@ -517,8 +524,6 @@ def main():
         # override num_warmup_steps
         args.num_warmup_steps = int(args.num_warmup_steps_prop * args.max_train_steps)
 
-    #args.max_train_steps *= len(all_selected_keys)
-
 
     total_batch_size = args.per_device_train_batch_size * 1 * args.gradient_accumulation_steps
     logger.info("***** Running training *****")
@@ -533,8 +538,9 @@ def main():
             # maintain the states for optimizer and scheduler
             param_groups = optimizer.param_groups
             last_epoch = lr_scheduler.last_epoch
-            #_lr = param_groups[-1]["lr"]
+            # handling lr decay -- 1) decay from original lr; 2) decay from most recent lr
             #_lr = args.learning_rate
+            _lr = param_groups[-1]["lr"]
             _lr = max(_lr / args.times_lr_decay, 1e-6)
             #del optimizer
             del lr_scheduler
@@ -553,19 +559,29 @@ def main():
         optimizer_grouped_parameters = []
         # in case of param-sharing models
         #params_set = set()
-        #for _key_group_id in range(key_group_id + 1):
+        parameter_names_so_far = []
         for _key_group_id in range(key_group_id + 1):
             selected_keys = all_selected_keys[_key_group_id][1]
-            params_at_this_layer_ = [p for n, p in model.named_parameters() if n in selected_keys]
-            set_params_at_this_layer_ = set(params_at_this_layer_)
+            params_name_at_this_layer_ = []
+            params_at_this_layer_ = []
+            for n, p in model.named_parameters():
+                if n in set(selected_keys):
+                    params_name_at_this_layer_.append(n)
+                    params_at_this_layer_.append(p)
+            # params_at_this_layer_ = [p for n, p in model.named_parameters() if n in set(selected_keys)]
+            #set_params_at_this_layer_ = set(params_at_this_layer_)
+            parameter_names_so_far.append(params_name_at_this_layer_)
+            logger.info(f"INVOLVED PARAMETERS: {params_name_at_this_layer_}")
             #if not params_set.isdisjoint(set_params_at_this_layer_):
                 #logger.info(f"identified tied params at {group_name}, #(tied params) = {len(params_set & set_params_at_this_layer_)}")
                 #set_params_at_this_layer_ = set_params_at_this_layer_ - params_set
 
             optimizer_grouped_parameters.append(
                 {
-                    "params": list(set_params_at_this_layer_),
-                    "weight_decay": args.weight_decay if _key_group_id > 0 else 0,
+                    "params": params_at_this_layer_,
+                    "weight_decay": args.weight_decay,
+                    # keep things simple
+                    #"weight_decay": args.weight_decay if _key_group_id > 0 else 0,
                     "lr": _lr
                 }
             )
@@ -600,12 +616,13 @@ def main():
             # trick here: prevent it decreases to 0
             #num_training_steps=args.max_train_steps * len(all_selected_keys),
         )
-        logger.info("scheduler_state_dict")
-        logger.info(f"before updating last_epoch: {lr_scheduler.state_dict()}")
+        # instead of using logging, we choose to directly save them as pt files to make logs easier to read
+        #logger.info("scheduler_state_dict")
+        #logger.info(f"before updating last_epoch: {lr_scheduler.state_dict()}")
         #if key_group_id != 0:
             #lr_scheduler.last_epoch = last_epoch
-        logger.info(f"after updating last_epoch: {lr_scheduler.state_dict()}")
-        logger.info(f"optimizer state: {print_state_dict(optimizer.state_dict())}")
+        #logger.info(f"after updating last_epoch: {lr_scheduler.state_dict()}")
+        #logger.info(f"optimizer state: {print_state_dict(optimizer.state_dict())}")
 
         # Get the metric function
         if args.task_name is not None:
@@ -626,9 +643,9 @@ def main():
         progress_bar = tqdm(range(args.max_train_steps))
         completed_steps = 0
 
-        #grad_dict_output_dir = f"./output_{args.task_name}/{args.model_name_or_path}/{'_'.join(selected_keys)}_grad_dicts_norm/"
-        #os.makedirs(grad_dict_output_dir, exist_ok=True)
-        #grad_norm_dict = dict()
+        # grad_dict_output_dir = os.path.join(saving_path, "grad_norm_dict")
+        # os.makedirs(grad_dict_output_dir, exist_ok=True)
+        grad_norm_dict = dict()
         if args.compute_norm_per_layer:
             norms_per_layer = []
         for epoch in range(args.num_train_epochs):
@@ -644,16 +661,18 @@ def main():
                     #accelerator.backward(loss)
                     loss.backward()
                     if step % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
-                        #if epoch < 2 and step % (len(train_dataloader) // 10) == 0:
-                            # only record grad_dict for first two epochs
-                        #grad_dict = {x[0]:(x[1].grad.data.norm().item(), torch.numel(x[1].grad.data)) for x in model.named_parameters()}
+                        grad_dict = {x[0]: {
+                            "param_norm": x[1].data.cpu().norm().item(),
+                            "grad_norm": x[1].grad.data.cpu().norm().item(),
+                            "param_num": torch.numel(x[1].data)
+                        } for x in model.named_parameters()}
                         #epoch_path = os.path.join(grad_dict_output_dir, f"epoch_{epoch}")
                         #os.makedirs(epoch_path, exist_ok=True)
                         #torch.save(grad_dic, os.path.join(epoch_path, f"grad_dict_{step}.pt"))
-                        #for key in grad_dict:
-                            #if key not in grad_norm_dict:
-                                #grad_norm_dict[key] = []
-                            #grad_norm_dict[key].append(grad_dict[key])
+                        for key in grad_dict:
+                            if key not in grad_norm_dict:
+                                grad_norm_dict[key] = []
+                            grad_norm_dict[key].append(grad_dict[key])
                         optimizer.step()
                         lr_scheduler.step()
                         optimizer.zero_grad()
@@ -675,8 +694,8 @@ def main():
                 predictions = outputs.logits.argmax(dim=-1) if not is_regression else outputs.logits.squeeze()
                 metric.add_batch(
                     #predictions=accelerator.gather(predictions),
-                    predictions=predictions,
                     #references=accelerator.gather(batch["labels"]),
+                    predictions=predictions,
                     references=batch["labels"],
                 )
                 if args.compute_norm_per_layer:
@@ -700,15 +719,18 @@ def main():
                 logger.info(f"epoch {epoch} scheduler state: {lr_scheduler.state_dict()}")
                 logger.info(f"epoch {epoch} optimizer state: {print_state_dict(optimizer.state_dict())}")
 
-        #torch.save(grad_norm_dict, os.path.join(grad_dict_output_dir, "grad_norm_dict.pt"))
         if args.output_dir is not None:
+            pass
             #accelerator.wait_for_everyone()
             #unwrapped_model = accelerator.unwrap_model(model)
             #unwrapped_model = model
             #unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
             #model.save_pretrained(args.output_dir)
+            if args.save_model_per_iteration:
             #if not args.no_training:
-                #model.save_pretrained(saving_path)
+                model.save_pretrained(saving_path)
+            if args.save_param_norm_per_iteration:
+                torch.save(grad_norm_dict, os.path.join(saving_path, "grad_norm_dict.pt"))
 
         if args.task_name == "mnli":
             # Final evaluation on mismatched validation set
@@ -727,8 +749,8 @@ def main():
                 predictions = outputs.logits.argmax(dim=-1)
                 metric.add_batch(
                     #predictions=accelerator.gather(predictions),
-                    predictions=predictions,
                     #references=accelerator.gather(batch["labels"]),
+                    predictions=predictions,
                     references=batch["labels"],
                 )
 
