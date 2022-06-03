@@ -42,6 +42,7 @@ from transformers.utils.versions import require_version
 import torch, sys
 import copy
 import numpy as np
+from utils import get_normal_iterative_train_optimizer
 
 def print_state_dict(state_dict):
     new_dict = {}
@@ -528,6 +529,9 @@ def main():
 
 
     total_batch_size = args.per_device_train_batch_size * 1 * args.gradient_accumulation_steps
+    optimizer = None
+    parameter_names_so_far = []
+
     logger.info("***** Running training *****")
     logger.info(f"  Num examples = {len(train_dataset)}")
     logger.info(f"  Num Epochs = {args.num_train_epochs}")
@@ -570,49 +574,11 @@ def main():
             )
             model.cuda()
 
-        optimizer_grouped_parameters = []
-        # in case of param-sharing models
-        #params_set = set()
-        parameter_names_so_far = []
-        for _key_group_id in range(key_group_id + 1):
-            selected_keys = all_selected_keys[_key_group_id][1]
-            params_name_at_this_layer_ = []
-            params_at_this_layer_ = []
-            for n, p in model.named_parameters():
-                if n in set(selected_keys):
-                    params_name_at_this_layer_.append(n)
-                    params_at_this_layer_.append(p)
-            # params_at_this_layer_ = [p for n, p in model.named_parameters() if n in set(selected_keys)]
-            #set_params_at_this_layer_ = set(params_at_this_layer_)
-            parameter_names_so_far.append(params_name_at_this_layer_)
-            logger.info(f"INVOLVED PARAMETERS: {params_name_at_this_layer_}")
-            #if not params_set.isdisjoint(set_params_at_this_layer_):
-                #logger.info(f"identified tied params at {group_name}, #(tied params) = {len(params_set & set_params_at_this_layer_)}")
-                #set_params_at_this_layer_ = set_params_at_this_layer_ - params_set
 
-            optimizer_grouped_parameters.append(
-                {
-                    "params": params_at_this_layer_,
-                    "weight_decay": args.weight_decay,
-                    # keep things simple
-                    #"weight_decay": args.weight_decay if _key_group_id > 0 else 0,
-                    "lr": _lr
-                }
-            )
-            #params_set.update(set_params_at_this_layer_)
-
-            assert len(optimizer_grouped_parameters[-1]["params"]) > 0
-
-        #print([len(x["params"]) for x in optimizer_grouped_parameters])
-        #optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
-        if key_group_id == 0:
-            optimizer = AdamW(optimizer_grouped_parameters)
-        else:
-            optimizer.add_param_group(optimizer_grouped_parameters[-1])
-            for _noised_param_i in range(len(noised_layers_param)):
-                noised_layers_param[_noised_param_i].data.add_(torch.randn_like(noised_layers_param[_noised_param_i]), alpha=args.noised_alpha)
-
-
+        optimizer, parameter_names_so_far = get_normal_iterative_train_optimizer(key_group_id, all_selected_keys, noised_layers_param,
+                                                         parameter_names_so_far, _lr,
+                                                         model, args, optimizer, restart=args.restart_per_iteration)
+        logger.info(f"INVOLVED PARAMETERS: {parameter_names_so_far}")
 
         ratio = (args.max_train_steps - args.num_warmup_steps) / ((args.times_lr_decay - 1) * args.max_train_steps)
         if not args.restart_per_iteration:
