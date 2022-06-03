@@ -345,6 +345,8 @@ def main():
         from_tf=bool(".ckpt" in args.model_name_or_path),
         config=config,
     )
+    # prepare for restart
+    #origin_model = model.clone()
 
     # Preprocessing the datasets
     if args.task_name is not None:
@@ -540,8 +542,12 @@ def main():
             last_epoch = lr_scheduler.last_epoch
             # handling lr decay -- 1) decay from original lr; 2) decay from most recent lr
             #_lr = args.learning_rate
-            _lr = param_groups[-1]["lr"]
-            _lr = max(_lr / args.times_lr_decay, 1e-6)
+            if not args.restart_per_iteration:
+                _lr = param_groups[-1]["lr"]
+                _lr = max(_lr / args.times_lr_decay, 1e-6)
+            else:
+                _lr = args.learning_rate
+                last_epoch = -1
             #del optimizer
             del lr_scheduler
             del metric
@@ -554,6 +560,14 @@ def main():
         os.makedirs(saving_path, exist_ok=True)
         if args.load_from_checkpoint:
             model = model.from_pretrained(saving_path)
+            model.cuda()
+        if args.restart_per_iteration and key_group_id > 0:
+            #model = original_model.clone()
+            model = AutoModelForSequenceClassification.from_pretrained(
+                args.model_name_or_path,
+                from_tf=bool(".ckpt" in args.model_name_or_path),
+                config=config,
+            )
             model.cuda()
 
         optimizer_grouped_parameters = []
@@ -598,21 +612,20 @@ def main():
             for _noised_param_i in range(len(noised_layers_param)):
                 noised_layers_param[_noised_param_i].data.add_(torch.randn_like(noised_layers_param[_noised_param_i]), alpha=args.noised_alpha)
 
-            #optimizer = AdamW(optimizer_grouped_parameters)
-        #print("lr")
-        #for group in optimizer.param_groups:
-            ##print(group["initial_lr"])
-            #print(group["lr"])
 
 
         ratio = (args.max_train_steps - args.num_warmup_steps) / ((args.times_lr_decay - 1) * args.max_train_steps)
+        if not args.restart_per_iteration:
+            max_train_steps = int(args.max_train_steps * (1 + ratio) )
+        else:
+            max_train_steps = args.max_train_steps
         lr_scheduler = get_scheduler(
             name=args.lr_scheduler_type,
             optimizer=optimizer,
             num_warmup_steps=args.num_warmup_steps,
             # trick here: make sure in the end of the current iteration, the learning rate decreases to 1 / times_lr_decay
             # reference: https://huggingface.co/transformers/_modules/transformers/optimization.html
-            num_training_steps=int(args.max_train_steps * (1 + ratio) )
+            num_training_steps=max_train_steps
             # trick here: prevent it decreases to 0
             #num_training_steps=args.max_train_steps * len(all_selected_keys),
         )

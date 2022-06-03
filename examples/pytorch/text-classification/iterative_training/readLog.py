@@ -5,10 +5,11 @@ if __name__ == '__main__':
     lr = "5e-4"
     metric = "accuracy"
     task = "rte"
-    ckpt_path = f"output_no_trainer_iterative/output_iterative_train_stateful_{task}/" \
-                f"bert-large-uncased-lr_{lr}_div_2_sd_*_epoch_3_warmup_prop_0.1"
+    #ckpt_path = f"output_no_trainer_iterative/output_iterative_train_stateful_{task}/" \
+                #f"bert-large-uncased-lr_{lr}_div_2_sd_*_epoch_3_warmup_prop_0.1"
+    ckpt_path = "output_no_trainer_iterative_restart/output_iterative_train_stateful_rte/bert-large-uncased_lr_5e-4_div_2_sd_*_epoch_3_warmup_prop_0.01"
     ckpt_dirs = glob.glob(ckpt_path)
-    print(f"totally {len(ckpt_path)} dirs")
+    print(f"totally {len(ckpt_dirs)} dirs")
     num_epochs = 3
     all_results = []
     for ckpt_dir in ckpt_dirs:
@@ -29,8 +30,10 @@ if __name__ == '__main__':
         assert len(one_run_res) % num_epochs == 0, f"{num_epochs} - {len(one_run_res)}"
         all_results.append(one_run_res)
     all_results = np.array(all_results)
-    print("mean", all_results.mean(axis=-1))
-    print("std", all_results.std(axis=-1))
+    print("mean", all_results.mean(axis=0))
+    print("std", all_results.std(axis=0))
+    print("min", all_results.min(axis=0))
+    print("max", all_results.max(axis=0))
 
 
 
