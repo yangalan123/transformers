@@ -8,6 +8,7 @@ import random
 
 all_clip_rates = []
 fig = go.Figure()
+all_colors = [list(np.random.choice(range(256), size=3)) for _ in range(50)]
 
 
 def compute_variance(path, majority=0.53, metrics="eval_accuracy"):
@@ -96,15 +97,15 @@ def compute_variance(path, majority=0.53, metrics="eval_accuracy"):
                             #     cur_value = decay_value * cur_value + (1 - decay_value) * val / nelem
                             #     discounted_values.append(cur_value)
                             # discounted_values.append(val / nelem)
-        x = [(f_i + 1) / num_steps for f_i in range(num_steps)]
-        all_colors = [list(np.random.choice(range(256), size=3)) for _ in range(2 * NUM_LAYERS)]
+        # x = [(f_i + 1) / num_steps for f_i in range(num_steps)]
+        steps = [(f_i + 1) * 20 for f_i in range(num_steps)]
         for param_type in norm_dict[0][0].keys():
             for layer_i in range(NUM_LAYERS):
                 values = [norm_dict[x][layer_i][param_type] for x in norm_dict]
                 values = np.array(values).mean(axis=0)
                 fig.add_trace(
                     # go.Scatter(x=x, y=values,
-                    go.Scatter(x=x, y=values,
+                    go.Scatter(x=steps, y=values,
                                legendgroup=param_type,
                                legendgrouptitle_text=param_type,
                                name=f"layer.{layer_i}",
@@ -119,12 +120,72 @@ def compute_variance(path, majority=0.53, metrics="eval_accuracy"):
                               size=18,
                               color="black"
                           ),
-                          xaxis_title="Time",
-                          yaxis_title="Value"
+                          xaxis_title="#(Optimization Steps)",
+                          yaxis_title="Grad Norm Value"
 
                           )
         os.makedirs(os.path.join(path, "norm_visualization"), exist_ok=True)
         fig.write_html(os.path.join(path, "norm_visualization", f"{output_fn}_{plot_stat_name}.html"))
+        comp_output_path = os.path.join(path, "norm_visualization", f"component_figures_{output_fn.split('_')[0]}_{plot_stat_name}")
+        os.makedirs(comp_output_path, exist_ok=True)
+        fig.update_layout(title="")
+        plt.rcParams["font.size"] = 15
+        for param_type in norm_dict[0][0].keys():
+            fig.data = []
+            plt.clf()
+            for layer_i in range(NUM_LAYERS):
+                values = [norm_dict[x][layer_i][param_type] for x in norm_dict]
+                values = np.array(values).mean(axis=0)
+                # fig.add_trace(
+                #     # go.Scatter(x=x, y=values,
+                #     go.Scatter(x=steps, y=values,
+                #                # legendgroup=param_type,
+                #                # legendgrouptitle_text=param_type,
+                #                name=f"layer.{layer_i}",
+                #                mode="lines",
+                #                line=dict(color=f"rgb{tuple(all_colors[layer_i])}"))
+                # )
+                plt.plot(steps, values, label=f"layer.{layer_i}", color=[x/255.0 for x in all_colors[layer_i]])
+            # fig.write_html(os.path.join(comp_output_path, f"{param_type.replace('.', '_')}.html"))
+            plt.xlabel("#(Optimization Steps)")
+            plt.ylabel("Grad Norm Value")
+            # plt.tight_layout()
+            plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.25),
+                       ncol=4, fancybox=True, prop={"size": 10})
+            plt.savefig(os.path.join(comp_output_path, f"{param_type.replace('.', '_')}.pdf"))
+        layer_output_path = os.path.join(path, "norm_visualization", f"layer_figures_{output_fn.split('_')[0]}_{plot_stat_name}")
+        os.makedirs(layer_output_path, exist_ok=True)
+        fig.update_layout(title="")
+        keys = list(norm_dict[0][0].keys())
+        for layer_i in range(NUM_LAYERS):
+            fig.data = []
+            plt.clf()
+            for param_type_i, param_type in enumerate(keys):
+                values = [norm_dict[x][layer_i][param_type] for x in norm_dict]
+                values = np.array(values).mean(axis=0)
+                # fig.add_trace(
+                #     # go.Scatter(x=x, y=values,
+                #     go.Scatter(x=steps, y=values,
+                #                # legendgroup=param_type,
+                #                # legendgrouptitle_text=param_type,
+                #                name=f"{param_type}",
+                #                mode="lines",
+                #                line=dict(color=f"rgb{tuple(all_colors[param_type_i])}"))
+                # )
+                plt.plot(steps, values, label=f"{param_type}", color=[x / 255.0 for x in all_colors[param_type_i]])
+            ax = plt.gca()
+            ax.set_ylim([0, 1.3])
+            plt.xlabel("#(Optimization Steps)")
+            plt.ylabel("Grad Norm Value")
+            plt.tight_layout()
+            # plt.legend(loc='upper center', bbox_to_anchor=(0.49, 1.5),
+            #            ncol=2, fancybox=True, prop={"size": 10})
+            # plt.subplots_adjust(top=0.7)
+            # plt.show()
+            # exit()
+            plt.savefig(os.path.join(layer_output_path, f"{layer_i}.pdf"))
+            # fig.write_html(os.path.join(layer_output_path, f"{layer_i}.html"))
+
 
         # clip_rate = np.array(clip_rate)
         # mean_clip_rate = np.mean(clip_rate, axis=0)
@@ -153,6 +214,7 @@ def compute_variance(path, majority=0.53, metrics="eval_accuracy"):
                 success_seed_dirs.append(seed_dir)
 
     # print(f"std: {np.std(accs):.3f}, mean: {np.mean(accs):.3f}, max: {np.max(accs):.3f}, min: {np.min(accs):.3f} , failed_run_ratio: {failed_run_counter/len(accs): .2f}")
+    print(failed_seed_dirs)
     print(
         f"min: {np.min(accs) * 100:.1f}, mean: {np.mean(accs) * 100:.1f}, max: {np.max(accs) * 100:.1f}, std: {np.std(accs) * 100:.1f} , failed_run_ratio: {failed_run_counter / len(accs) * 100: .1f}%")
     plot_clip_rate_fig(seed_dirs, "clip_rate_over_time.pdf")
@@ -166,16 +228,16 @@ def compute_variance(path, majority=0.53, metrics="eval_accuracy"):
         print("no success run, will not print figures for success run")
 
     if "baseline" not in path:
-        if len(success_seed_dirs) > 0:
-            plot_norm_across_layer_over_time(success_seed_dirs, "success_norm_state_over_time", "current_param_norm")
-            plot_norm_across_layer_over_time(success_seed_dirs, "success_norm_state_over_time", "previous_grad_norm")
-        else:
-            print("no success run, will not print figures for failed run")
         if len(failed_seed_dirs) > 0:
             plot_norm_across_layer_over_time(failed_seed_dirs, "failed_norm_state_over_time", "current_param_norm")
             plot_norm_across_layer_over_time(failed_seed_dirs, "failed_norm_state_over_time", "previous_grad_norm")
         else:
             print("no failed run, will not print figures for failed run")
+        if len(success_seed_dirs) > 0:
+            plot_norm_across_layer_over_time(success_seed_dirs, "success_norm_state_over_time", "current_param_norm")
+            plot_norm_across_layer_over_time(success_seed_dirs, "success_norm_state_over_time", "previous_grad_norm")
+        else:
+            print("no success run, will not print figures for failed run")
 
 
     return np.mean(accs), np.std(accs)
@@ -183,9 +245,10 @@ def compute_variance(path, majority=0.53, metrics="eval_accuracy"):
 
 if __name__ == '__main__':
     # clip_values = ["999999", "0.0001", "1e-6", "0", "-1e-4"]
-    clip_values = ["0.01", "0.05", "0.1", "0.5", "1", "5", "1e5"]
+    # clip_values = ["1e5", "0.01", "0.05", "0.1", "0.5", "1", "5"]
     # clip_values = ["none"]
-    # clip_values = ["1e5"]
+    clip_values = ["1e5", "0.05"]
+    # clip_values = ["0.05"]
     # task = "rte"
     # task = "mrpc"
     # task = "cola"
@@ -202,7 +265,8 @@ if __name__ == '__main__':
         "qnli": "eval_accuracy"
     }
     # for task in ["rte", "mrpc", "cola"]:
-    for task in ["mrpc"]:
+    # for task in ["mrpc"]:
+    for task in ["rte", "cola"]:
         model = "bert-large-uncased"
         # from: https://arxiv.org/pdf/2006.04884.pdf
         accs = []
@@ -212,9 +276,10 @@ if __name__ == '__main__':
         for clip_val in clip_values:
         # for clip_val in ["1e-5" ,"3e-5","5e-5"]:
             try:
-                # path = f"output/output/output/pre_correction_{model}_{task}_group_clip_by_norm_{clip_val}"
+                path = f"output/output/output/pre_correction_{model}_{task}_group_clip_by_norm_{clip_val}"
                 # path = f"output/old/pre_correction_{model}_{task}_group_clip_by_norm_{clip_val}"
-                path = f"output/output/output/sumsample1000_{model}_{task}_group_clip_by_norm_{clip_val}"
+                # path = f"output/output/output/sumsample1000_{model}_{task}_group_clip_by_norm_{clip_val}"
+                # path = f"output/sumsample100_{model}_{task}_group_clip_by_norm_{clip_val}"
                 # path = f"output/output/output/pre_correction_{model}_{task}_baseline_lcrl"
                 # path = f"output/output/output/subsample1000_{model}_{task}_baseline_lcrl"
                 # path = f"output/output/output/post_correction_{model}_{task}_baseline_iclr_lr{clip_val}"
